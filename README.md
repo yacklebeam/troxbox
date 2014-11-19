@@ -1,4 +1,4 @@
-TROXELBox
+TROXBOX
 =========
 
 I made this repository to practice simple C/C++ classes like Trees, LinkedLists, etc.
