@@ -1,5 +1,6 @@
 TROXBOX
-=========
+***
 
-I made this repository to practice simple C/C++ classes like Trees, LinkedLists, etc.
-These are things I've done before, but would like to so outside the classroom environment.
+Adventures in Programming!
+This is a "toolbox" of code I develop to test or implement various things.
+Likely, it will be mostly exploring game design code, and will include demonstrations I develop for lectures.
