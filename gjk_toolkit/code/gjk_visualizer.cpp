@@ -504,7 +504,7 @@ WinMain(HINSTANCE hInstance,
         HWND WindowHandle = CreateWindowEx(
         0,
         WindowClass.lpszClassName,
-        "WindowTest",
+        "GJK_TOOLKIT",
         WS_OVERLAPPEDWINDOW|WS_VISIBLE,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
