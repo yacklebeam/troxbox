@@ -25,6 +25,8 @@ static real32 GlobalPerfCountFrequency;
 static bool freeze;
 static bool freezeDown;
 static bool drawArrays;
+static bool realtime;
+static bool realtimeDown;
 
 static Entity player;
 static Entity wall;
@@ -355,9 +357,11 @@ RenderScreen(int XOffset, int YOffset)
         RenderEntity(&wall, 1);
         RenderEntity(&player, 0);
     }
-    RenderMinkowski();
-    DrawDot(BitmapWidth/2, BitmapHeight/2, 255, 255, 255);
-
+    if(!realtime)
+    {
+        RenderMinkowski();
+        DrawDot(BitmapWidth/2, BitmapHeight/2, 255, 255, 255);
+    }
     if(freeze)
     {
         RenderSimplex();
@@ -517,10 +521,14 @@ WinMain(HINSTANCE hInstance,
             player.Y = BitmapHeight / 2;
             player.width = 50;
             player.height = 50;
+            
             freeze = false;
             bool DoingMink = false;
+            realtimeDown = false;
             freezeDown = false;
             drawArrays = false;
+            realtime = false;
+
             wall.X = BitmapWidth / 2 - 200;
             wall.Y = BitmapHeight / 2 - 100;
             wall.width = 100;
@@ -549,23 +557,26 @@ WinMain(HINSTANCE hInstance,
                 {
                     Running = false;
                 }
+                vec Delta;
+                Delta.X = 0;
+                Delta.Y = 0;
                 if(!freeze)
                 {
                     if(keys['W'])
                     {
-                        player.Y -= 5;
+                        Delta.Y -= 5;
                     }
                     if(keys['S'])
                     {
-                        player.Y += 5;
+                        Delta.Y += 5;
                     }
                     if(keys['A'])
                     {
-                        player.X -= 5;
+                        Delta.X -= 5;
                     }
                     if(keys['D'])
                     {
-                        player.X += 5;
+                        Delta.X += 5;
                     }
                     if(keys[VK_UP])
                     {
@@ -622,9 +633,32 @@ WinMain(HINSTANCE hInstance,
                 {
                     DoingMink = false;
                 }
-                if(keys['O'])
+                if(keys['O'] && !realtimeDown)
                 {
-                    drawArrays = true;
+                    realtime = !realtime;
+                    realtimeDown = true;
+                }
+                if(!keys['O'])
+                {
+                    realtimeDown = false;
+                }
+                if(realtime)
+                {
+                    player.X += Delta.X;
+                    player.Y += Delta.Y; 
+                    UpdateMinkowski();
+                    Simplex.clear();
+                    bool Collided = DoMinkowski(Pedges, 4, Wedges, 4);
+                    if(Collided) // undo that shiz...
+                    {
+                        player.X += -Delta.X;
+                        player.Y += -Delta.Y;  
+                    }
+                }
+                else
+                {
+                    player.X += Delta.X;
+                    player.Y += Delta.Y;
                 }
 
                 UpdateMinkowski();
