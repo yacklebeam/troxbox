@@ -2,7 +2,7 @@
 
 A tool for demonstration the GJK collision algorithm.
 
-What am I seeing?
+<h2>What am I seeing?</h2>
 
 The Red and Blue squares are the player and wall, respectively.  We can move the player around the scene, and then check for a collision.
 
@@ -10,7 +10,7 @@ The Green dots are the Minkowski Difference of the two shapes.
 
 The single White dot is the origin.
 
-Controls:
+<h2>Controls:</h2>
 
 "WASD" to Move "player" around while in Normal mode.
 
