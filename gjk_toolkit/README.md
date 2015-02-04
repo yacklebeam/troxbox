@@ -1,6 +1,6 @@
 <h1>GJK_TOOLKIT</h1>
 
-A tool for demonstration the GJK collision algorithm.
+Collision detection is pivotal to game development, and doing so quickly and accurately will help to create a stronger gaming experience.  One of my favorite collision detection algorithms, the __Gibert-Johnson-Keerthi (GJK)__ algorithm can solve for collisions between any two convex polygons of any size very quickly.  To do this, it uses the __Minkowski Sum__ (or Difference, depending on whom you ask) and then does simple converging spline-checking to detect a collision.
 
 <h2>What am I seeing?</h2>
 
