@@ -531,7 +531,7 @@ WinMain(HINSTANCE hInstance,
 
             wall.X = BitmapWidth / 2 - 200;
             wall.Y = BitmapHeight / 2 - 100;
-            wall.width = 100;
+            wall.width = 20;
             wall.height = 100;
 
             int XOffset = 0;
