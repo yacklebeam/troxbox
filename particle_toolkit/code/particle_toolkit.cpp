@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <iostream>
 #include <vector>
+#include <cstdlib>
 
 typedef float real32;
 typedef int32_t bool32;
@@ -12,6 +13,37 @@ struct vec
     float X;
     float Y;
 };
+
+vec
+operator-(vec a, vec b)
+{
+    vec Result;
+    Result.X = a.X - b.X;
+    Result.Y = a.Y - b.Y;
+
+    return(Result);
+}
+
+vec
+operator*(vec a, float b)
+{
+    vec Result;
+    Result.X = a.X * b;
+    Result.Y = a.Y * b;
+
+    return(Result);
+}
+
+vec
+operator+(vec a, vec b)
+{
+    vec Result;
+    Result.X = a.X + b.X;
+    Result.Y = a.Y + b.Y;
+
+    return(Result);
+}
+
 
 struct Particle
 {
@@ -45,20 +77,84 @@ Emitter MainEmitter;
 static void
 MakeParticle(Emitter *e)
 {
+    //int spread = 100;
+
+    /*int RandValueX = (rand() % spread) + 1;
+    float diffX = ((float)spread / RandValueX);
+    int RandValueY = (rand() % spread) + 1;
+    float diffY = ((float)spread / RandValueY);*/
+    float diffY = 0.0f;
+    float diffX = 0.0f;
+
     Particle NewPart;
-    NewPart.Position = e->source.Position;
+    NewPart.Position = e->Position;
     NewPart.V = e->source.V;
     NewPart.dV = e->source.dV;
+    NewPart.dV.X = NewPart.dV.X + NewPart.dV.X * diffX;
+    NewPart.dV.Y = NewPart.dV.Y + NewPart.dV.Y * diffY;
     NewPart.lifeTime = e->source.lifeTime;
     e->parts.push_back(NewPart);
 }
 
+static vec
+ConvertToMeters(vec a)
+{
+    vec Result;
+    Result.X = a.X * 60;
+    Result.Y = a.Y * 60;
+    return(Result);
+}
+
 static void
-UpdateParticles(Emitter *e)
+UpdateParticles(Emitter *e, float dt)
 {
     for(int i = 0; i < e->parts.size(); ++i)
     {
-        //do some ODE here.
+        float accLength = e->parts[i].dV.X * e->parts[i].dV.X + e->parts[i].dV.Y * e->parts[i].dV.Y;
+        if(accLength > 1.0f)
+        {
+            e->parts[i].dV.X *= (1.0f / sqrt(accLength));
+            e->parts[i].dV.Y *= (1.0f / sqrt(accLength));
+        }
+        e->parts[i].dV = e->parts[i].dV * 150.0f;
+        e->parts[i].dV = e->parts[i].dV + e->parts[i].V * -1.5f;
+        e->parts[i].Position = e->parts[i].Position + ConvertToMeters(e->parts[i].dV * (0.5f * dt * dt) + e->parts[i].V * dt);
+        e->parts[i].V = e->parts[i].dV * dt + e->parts[i].V;
+        if(abs(e->parts[i].V.X) < 0.001) e->parts[i].V.X = 0;
+        if(abs(e->parts[i].V.Y) < 0.001) e->parts[i].V.Y = 0;
+
+        e->parts[i].dV.X = 0.0f;
+        e->parts[i].dV.Y = 0.0f;
+
+        if(e->parts[i].lifeTime-- == 0)
+        {
+            e->parts.erase(e->parts.begin() + i);
+            continue;
+        }
+
+        if(e->parts[i].Position.X < 0 || e->parts[i].Position.X > BitmapWidth || e->parts[i].Position.Y < 0 || e->parts[i].Position.Y > BitmapHeight)
+        {
+            e->parts.erase(e->parts.begin() + i);
+            continue;
+        }
+    }
+}
+
+static void
+DrawDot(int WorldX, int WorldY, int R, int G, int B)
+{
+    int Pitch = 4 * BitmapWidth;
+    uint8_t *Row = (uint8_t *)BitmapMemory;
+    Row += (uint32_t)(Pitch * (WorldY - 2));
+    uint32_t *Pixel;
+    for(int Y = 0; Y < 5; ++Y)
+    {
+        Pixel = (uint32_t *)Row + (uint32_t)(WorldX - 2);
+        for(int X = 0; X < 5; ++X)
+        {
+            *Pixel++ = (R << 16 | G << 8 | B); 
+        }
+        Row += Pitch;
     }
 }
 
@@ -67,7 +163,7 @@ RenderParticles(Emitter *e)
 {
     for(int i = 0; i < e->parts.size(); ++i)
     {
-        //RENDER here
+        DrawDot(e->parts[i].Position.X, e->parts[i].Position.Y, 255, 102, 0);
     }
 }
 
@@ -242,11 +338,25 @@ WinMain(HINSTANCE hInstance,
 
         if(WindowHandle)
         {
-
             int XOffset = 0;
             int YOffset = 0;
-            float TargetSecondsPerFrame = 1.0f / (real32)30;
+            int DesiredFramesPerSecond = 30;
+            float TargetSecondsPerFrame = 1.0f / (real32)DesiredFramesPerSecond;
             Running = true;
+
+            MainEmitter.Position.X = BitmapWidth / 2;
+            MainEmitter.Position.Y = BitmapHeight / 2;
+
+            Particle Fire;
+            Fire.dV.X = 0.5;
+            Fire.dV.Y = -1;
+            Fire.V.X = 0;
+            Fire.V.Y = 0;
+            Fire.lifeTime = 1 * DesiredFramesPerSecond;
+
+            MainEmitter.EmitSpeed = 10;
+            MainEmitter.source = Fire;
+
             LARGE_INTEGER LastCounter = Win32GetWallClock();
             while(Running)
             {
@@ -265,6 +375,12 @@ WinMain(HINSTANCE hInstance,
                 {
                     Running = false;
                 }
+                if(keys['E'])
+                {
+                    MakeParticle(&MainEmitter);
+                }
+
+                UpdateParticles(&MainEmitter, TargetSecondsPerFrame);
 
                 RenderScreen(XOffset, YOffset);
                 HDC DeviceContext = GetDC(WindowHandle);
