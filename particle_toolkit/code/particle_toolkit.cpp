@@ -77,14 +77,16 @@ Emitter MainEmitter;
 static void
 MakeParticle(Emitter *e)
 {
-    //int spread = 100;
+    //TODO (jtroxel): update this spread to be a factor
+    // not based on acc value but on angle.
+    int spread = 50;
 
-    /*int RandValueX = (rand() % spread) + 1;
-    float diffX = ((float)spread / RandValueX);
-    int RandValueY = (rand() % spread) + 1;
-    float diffY = ((float)spread / RandValueY);*/
-    float diffY = 0.0f;
-    float diffX = 0.0f;
+    int RandValueX = (rand() % (2 * spread)) + 100 - spread;
+    float diffX = ((float)100 / RandValueX);
+    int RandValueY = (rand() % (2 * spread)) + 100 - spread;
+    float diffY = ((float)100 / RandValueY);
+    //float diffY = 0.0f;
+    //float diffX = 0.0f;
 
     Particle NewPart;
     NewPart.Position = e->Position;
@@ -163,7 +165,7 @@ RenderParticles(Emitter *e)
 {
     for(int i = 0; i < e->parts.size(); ++i)
     {
-        DrawDot(e->parts[i].Position.X, e->parts[i].Position.Y, 255, 102, 0);
+        DrawDot(e->parts[i].Position.X, e->parts[i].Position.Y, 255, (int)((e->source.lifeTime - e->parts[i].lifeTime) * (255/e->source.lifeTime)), 0);
     }
 }
 
