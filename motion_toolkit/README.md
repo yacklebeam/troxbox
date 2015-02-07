@@ -7,4 +7,5 @@ This project examines the user experience differences between simple motion and 
 <h2>Controls:</h2>
 
 "WASD" to Move.
+
 "U" to toggle motion type (your player color changes to reflect current mode).  Green is simple (no velocity or acceleration), Red is complex.

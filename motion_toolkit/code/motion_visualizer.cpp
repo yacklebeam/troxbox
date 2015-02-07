@@ -44,6 +44,16 @@ operator+(vec a, vec b)
     return(Result);
 }
 
+struct Entity
+{
+    vec Position;
+    vec Velocity;
+    vec Acceleration;
+    int height;
+    int width;
+    bool Simple;
+};
+
 static bool Running;
 static BITMAPINFO BitMapInfo;
 static void *BitmapMemory;
@@ -54,14 +64,31 @@ static int YOffset;
 static real32 GlobalPerfCountFrequency;
 bool keys[256];
 
-
 static vec
-ConvertToMeters(vec a)
+MetersToPixels(vec a)
 {
     vec Result;
     Result.X = a.X * 60;
     Result.Y = a.Y * 60;
     return(Result);
+}
+
+static void
+RenderEntity(Entity *entity, uint8_t R, uint8_t G, uint8_t B)
+{
+    int Pitch = 4 * BitmapWidth;
+    uint8_t *Row = (uint8_t *)BitmapMemory;
+    Row += (uint32_t)(Pitch * (uint32_t)entity->Position.Y);
+    uint32_t *Pixel;
+    for(int Y = 0; Y < entity->height; ++Y)
+    {
+        Pixel = (uint32_t *)Row + (uint32_t)entity->Position.X;
+        for(int X = 0; X < entity->width; ++X)
+        {
+           *Pixel++ = (R << 16 | G << 8 | B); 
+        }
+        Row += Pitch;
+    }
 }
 
 static void
@@ -82,6 +109,36 @@ RenderScreen(int XOffset, int YOffset)
         }
         Row += Pitch;
     }
+}
+
+static void
+UpdateEntity(Entity *e, float dt)
+{
+    if(e->Simple)
+    {
+        e->Position = e->Position + MetersToPixels(e->Acceleration * 0.25f); 
+    }
+    else
+    {
+        float accLength = e->Acceleration.X * e->Acceleration.X + e->Acceleration.Y * e->Acceleration.Y;
+        if(accLength > 1.0f)
+        {
+            e->Acceleration.X *= (1.0f / sqrt(accLength));
+            e->Acceleration.Y *= (1.0f / sqrt(accLength));
+        }
+        e->Acceleration = e->Acceleration * 70.0f;
+        e->Acceleration = e->Acceleration + (e->Velocity * -8.0f);
+        e->Position = e->Position + MetersToPixels(e->Acceleration * (0.5f * dt * dt) + e->Velocity * dt);
+        e->Velocity = e->Acceleration * dt + e->Velocity;
+
+        if(abs(e->Velocity.X) < 0.001) e->Velocity.X = 0;
+        if(abs(e->Velocity.Y) < 0.001) e->Velocity.Y = 0;      
+    }
+
+    if(e->Position.X < 0) e->Position.X = 0;
+    if(e->Position.Y < 0) e->Position.Y = 0;
+    if(e->Position.X > BitmapWidth - e->width) e->Position.X = BitmapWidth - e->width;
+    if(e->Position.Y > BitmapHeight - e->height) e->Position.Y = BitmapHeight - e->height;
 }
 
 inline LARGE_INTEGER
@@ -238,6 +295,23 @@ WinMain(HINSTANCE hInstance,
             int DesiredFramesPerSecond = 30;
             float TargetSecondsPerFrame = 1.0f / (real32)DesiredFramesPerSecond;
             Running = true;
+            bool notDown = true;
+
+            Entity player;
+            player.Position.X = BitmapWidth / 2;
+            player.Position.Y = BitmapHeight / 2;
+            player.width = 40;
+            player.height = 60;
+            player.Simple = true;
+            player.Velocity.X = 0;
+            player.Velocity.Y = 0;
+            player.Acceleration.X = 0;
+            player.Acceleration.Y = 0;
+
+
+            uint8_t PlayerRed = 0;
+            uint8_t PlayerGreen = 0;
+            uint8_t PlayerBlue = 0;
 
             LARGE_INTEGER LastCounter = Win32GetWallClock();
             while(Running)
@@ -258,7 +332,52 @@ WinMain(HINSTANCE hInstance,
                     Running = false;
                 }
 
+                player.Acceleration.X = 0.0f;
+                player.Acceleration.Y = 0.0f;
+
+                if(keys['W'])
+                {
+                    player.Acceleration.Y = -1.0f;
+                }
+                if(keys['A'])
+                {
+                    player.Acceleration.X = -1.0f;
+                }
+                if(keys['S'])
+                {
+                    player.Acceleration.Y = 1.0f;
+                }
+                if(keys['D'])
+                {
+                    player.Acceleration.X = 1.0f;                    
+                }
+
+                if(keys['U'] && notDown)
+                {
+                    notDown = false;
+                    player.Simple = !player.Simple;
+                }
+                if(!keys['U'])
+                {
+                    notDown = true;
+                }
+                if(player.Simple)
+                {
+                    PlayerRed = 0;
+                    PlayerGreen = 255;
+                    PlayerBlue = 0;
+                }
+                else
+                {
+                    PlayerRed = 255;
+                    PlayerGreen = 0;
+                    PlayerBlue = 0;   
+                }
+
+                UpdateEntity(&player, TargetSecondsPerFrame);
+
                 RenderScreen(XOffset, YOffset);
+                RenderEntity(&player, PlayerRed, PlayerGreen, PlayerBlue);
                 HDC DeviceContext = GetDC(WindowHandle);
                 RECT WindowRect;
                 GetClientRect(WindowHandle, &WindowRect);
