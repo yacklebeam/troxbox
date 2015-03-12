@@ -6,14 +6,6 @@
 typedef float real32;
 typedef int32_t bool32;
 
-struct Entity
-{
-    float X;
-    float Y;
-    int width;
-    int height;
-};
-
 static bool Running;
 static BITMAPINFO BitMapInfo;
 static void *BitmapMemory;
@@ -28,9 +20,6 @@ static bool drawArrays;
 static bool realtime;
 static bool realtimeDown;
 
-static Entity player;
-static Entity wall;
-
 static int PauseColorR;
 static int PauseColorG;
 static int PauseColorB;
@@ -44,8 +33,23 @@ struct vec
     float Z;
 };
 
-static std::vector<vec> Simplex;
+struct PolygonHitBox
+{
+    std::vector<vec> Points;
+};
 
+struct Entity
+{
+    float X;
+    float Y;
+    int width;
+    int height;
+    PolygonHitBox hitbox;
+};
+
+static Entity player;
+static Entity wall;
+static std::vector<vec> Simplex;
 
 vec
 MakeVec(float x, float y, float Z = 0.0)
@@ -228,24 +232,6 @@ std::vector<vec> Pedges;
 std::vector<vec> Wedges;
 
 static void
-RenderEntity(Entity *entity, int color)
-{
-    int Pitch = 4 * BitmapWidth;
-    uint8_t *Row = (uint8_t *)BitmapMemory;
-    Row += (uint32_t)(Pitch * entity->Y);
-    uint32_t *Pixel;
-    for(int Y = 0; Y < entity->height; ++Y)
-    {
-        Pixel = (uint32_t *)Row + (uint32_t)entity->X;
-        for(int X = 0; X < entity->width; ++X)
-        {
-            if(color == 0) *Pixel++ = (255 << 16 | 0 << 8 | 0); 
-            else if(color == 1) *Pixel++ = (0 << 16 | 0 << 8 | 255); 
-        }
-        Row += Pitch;
-    }
-}
-static void
 DrawDot(int WorldX, int WorldY, int R, int G, int B)
 {
     int Pitch = 4 * BitmapWidth;
@@ -261,6 +247,29 @@ DrawDot(int WorldX, int WorldY, int R, int G, int B)
         }
         Row += Pitch;
     }
+}
+
+static void
+RenderEntity(Entity *entity, int color)
+{
+    for(int i = 0; i < entity->hitbox.Points.size(); ++i)
+    {
+        DrawDot(entity->hitbox.Points[i].X, entity->hitbox.Points[i].Y, color, color, color);
+    }
+    /*int Pitch = 4 * BitmapWidth;
+    uint8_t *Row = (uint8_t *)BitmapMemory;
+    Row += (uint32_t)(Pitch * entity->Y);
+    uint32_t *Pixel;
+    for(int Y = 0; Y < entity->height; ++Y)
+    {
+        Pixel = (uint32_t *)Row + (uint32_t)entity->X;
+        for(int X = 0; X < entity->width; ++X)
+        {
+            if(color == 0) *Pixel++ = (255 << 16 | 0 << 8 | 0); 
+            else if(color == 1) *Pixel++ = (0 << 16 | 0 << 8 | 255); 
+        }
+        Row += Pitch;
+    }*/
 }
 
 static void
@@ -296,13 +305,15 @@ RenderMinkowski()
 static void
 UpdateMinkowski()
 {
-    Pedges = GetCorners(player);
-    Wedges = GetCorners(wall);
+    //Pedges = GetCorners(player);
+    //Wedges = GetCorners(wall);
+    Pedges = player.hitbox.Points;
+    Wedges = wall.hitbox.Points;
 
     minkowski.clear();
-    for(int i = 0; i < 4; ++i)
+    for(int i = 0; i < Pedges.size(); ++i)
     {
-        for(int j = 0; j < 4; ++j)
+        for(int j = 0; j < Wedges.size(); ++j)
         {
             minkowski.push_back(Pedges[i] - Wedges[j]);
         }
@@ -521,7 +532,12 @@ WinMain(HINSTANCE hInstance,
             player.Y = BitmapHeight / 2;
             player.width = 50;
             player.height = 50;
-            
+            player.hitbox.Points.push_back(MakeVec(10,10));
+            player.hitbox.Points.push_back(MakeVec(10,50));
+            player.hitbox.Points.push_back(MakeVec(50,10));
+            player.hitbox.Points.push_back(MakeVec(50,100));            
+            player.hitbox.Points.push_back(MakeVec(25,70));
+
             freeze = false;
             bool DoingMink = false;
             realtimeDown = false;
@@ -531,8 +547,12 @@ WinMain(HINSTANCE hInstance,
 
             wall.X = BitmapWidth / 2 - 200;
             wall.Y = BitmapHeight / 2 - 100;
-            wall.width = 20;
-            wall.height = 100;
+            wall.width = 100;
+            wall.height = 50;
+            wall.hitbox.Points.push_back(MakeVec(10,10));
+            wall.hitbox.Points.push_back(MakeVec(10,50));
+            wall.hitbox.Points.push_back(MakeVec(50,10));
+            wall.hitbox.Points.push_back(MakeVec(50,50));
 
             int XOffset = 0;
             int YOffset = 0;
@@ -648,7 +668,7 @@ WinMain(HINSTANCE hInstance,
                     player.Y += Delta.Y; 
                     UpdateMinkowski();
                     Simplex.clear();
-                    bool Collided = DoMinkowski(Pedges, 4, Wedges, 4);
+                    bool Collided = DoMinkowski(Pedges, Pedges.size(), Wedges, Wedges.size());
                     if(Collided) // undo that shiz...
                     {
                         player.X += -Delta.X;
