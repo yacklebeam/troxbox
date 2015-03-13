@@ -214,7 +214,6 @@ CollisionResult_t GetCollision(Hitbox X, Hitbox Y, vec D)
     CollisionResult_t Result;
     if(!infinite) Result.t = GetIntersection(MakeVec(0,0),-D, Simplex[0], Simplex[1]);
     else Result.t = 1.0f;
-    if(Result.t > 0.000001f) Result.t -= 0.000001f;//kEpsilon
     Result.normal = Normalize(GetPerpindicularAwayFrom(Simplex[0] - Simplex[1], D));
 
     return(Result);
