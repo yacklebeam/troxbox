@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include "collision_engine.cpp"
 
+#define PIXELS_PER_METER 30 //rougly 10 pixels = 1 ft
 typedef float real32;
 typedef int32_t bool32;
 
@@ -33,11 +34,10 @@ static real32 GlobalPerfCountFrequency;
 bool keys[256];
 
 static vec
-MetersToPixels(vec a)
+MetersToPixels(vec A)
 {
     vec Result;
-    Result.X = a.X * 60;
-    Result.Y = a.Y * 60;
+    Result = A * PIXELS_PER_METER;
     return(Result);
 }
 
@@ -179,7 +179,7 @@ UpdateEntity(Entity *e, std::vector<Entity> walls, float dt)
         e->Acceleration.X *= (1.0f / sqrt(accLength));
         e->Acceleration.Y *= (1.0f / sqrt(accLength));
     }
-    e->Acceleration = e->Acceleration * 70.0f;
+    e->Acceleration = e->Acceleration * 100.0f;
     e->Acceleration = e->Acceleration + (e->Velocity * -8.0f);
     vec Delta = e->Acceleration * (0.5f * dt * dt) + e->Velocity * dt;
     MoveEntity(e, walls, Delta);
