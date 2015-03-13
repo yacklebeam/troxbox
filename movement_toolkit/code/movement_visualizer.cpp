@@ -18,6 +18,7 @@ struct Entity
     int width;
     bool Simple;
     Hitbox hitbox;
+    CollisionType type;
 };
 
 static std::vector<vec> Simplex;
@@ -134,10 +135,24 @@ MoveEntity(Entity *e, std::vector<Entity> walls, vec Delta)
         for(int i = 0; i < walls.size(); ++i)
         {
             CollisionResult_t Result = GetCollision(e->hitbox, walls[i].hitbox, TrueDelta);
-            if(Result.t < tCalc && Result.t >= 0)
+            switch(walls[i].type)
             {
-                tCalc = Result.t;
-                finalResult = Result;
+                case COLLISION_TYPE_COLLIDE:
+                {
+                    if(Result.t < tCalc && Result.t >= 0)
+                    {
+                        tCalc = Result.t;
+                        finalResult = Result;
+                    }
+                }
+                case COLLISION_TYPE_INTERSECT://assuming all collides are before intersects...
+                //TODO (jtroxel): correct this behavior for general case
+                {
+                    if(Result.t < tCalc && Result.t >= 0)
+                    {
+                        e->Velocity = e->Velocity * 2.5;
+                    }
+                }
             }
         }
         if(tCalc < 1.0) // collision
@@ -356,6 +371,7 @@ WinMain(HINSTANCE hInstance,
             topWall.height = 20;
             topWall.hitbox.size = 4;
             topWall.hitbox.points = new vec[4];
+            topWall.type = COLLISION_TYPE_COLLIDE;
             GetHitbox(topWall.hitbox.points, topWall.Position, BitmapWidth, 20);
 
             Entity bottomWall;
@@ -364,6 +380,7 @@ WinMain(HINSTANCE hInstance,
             bottomWall.height = 20;
             bottomWall.hitbox.size = 4;
             bottomWall.hitbox.points = new vec[4];
+            bottomWall.type = COLLISION_TYPE_COLLIDE;
             GetHitbox(bottomWall.hitbox.points, bottomWall.Position, BitmapWidth, 20);
             
             Entity leftWall;
@@ -372,6 +389,7 @@ WinMain(HINSTANCE hInstance,
             leftWall.height = BitmapHeight;
             leftWall.hitbox.size = 4;
             leftWall.hitbox.points = new vec[4];
+            leftWall.type = COLLISION_TYPE_COLLIDE;
             GetHitbox(leftWall.hitbox.points, leftWall.Position, 20, BitmapHeight);
             
             Entity rightWall;
@@ -380,6 +398,7 @@ WinMain(HINSTANCE hInstance,
             rightWall.height = BitmapHeight;
             rightWall.hitbox.size = 4;
             rightWall.hitbox.points = new vec[4];
+            rightWall.type = COLLISION_TYPE_COLLIDE;
             GetHitbox(rightWall.hitbox.points, rightWall.Position, 20, BitmapHeight);
             
             Entity middleWallTop;
@@ -388,6 +407,7 @@ WinMain(HINSTANCE hInstance,
             middleWallTop.height = (BitmapHeight / 2) - 40;
             middleWallTop.hitbox.size = 4;
             middleWallTop.hitbox.points = new vec[4];
+            middleWallTop.type = COLLISION_TYPE_COLLIDE;
             GetHitbox(middleWallTop.hitbox.points, middleWallTop.Position, 20, (BitmapHeight / 2) - 40);
 
             Entity middleWallBot;
@@ -396,6 +416,7 @@ WinMain(HINSTANCE hInstance,
             middleWallBot.height = (BitmapHeight / 2) - 40;
             middleWallBot.hitbox.size = 4;
             middleWallBot.hitbox.points = new vec[4];
+            middleWallBot.type = COLLISION_TYPE_COLLIDE;
             GetHitbox(middleWallBot.hitbox.points, middleWallBot.Position, 20, (BitmapHeight / 2) - 40);
 
             walls.push_back(topWall);
@@ -417,6 +438,7 @@ WinMain(HINSTANCE hInstance,
                 newWalls[i].height = 40;
                 newWalls[i].hitbox.size = 4;
                 newWalls[i].hitbox.points = new vec[4];
+                newWalls[i].type = COLLISION_TYPE_COLLIDE;
                 GetHitbox(newWalls[i].hitbox.points, newWalls[i].Position, 40, 40);
                 walls.push_back(newWalls[i]);
             }
@@ -468,7 +490,18 @@ WinMain(HINSTANCE hInstance,
                 RenderScreen(XOffset, YOffset);
                 for(int i = 0; i < walls.size(); ++i)
                 {
-                    RenderEntity(&walls[i], 0, 0, 255);
+                    if(walls[i].type == COLLISION_TYPE_COLLIDE)
+                    {
+                        RenderEntity(&walls[i], 0, 0, 255);
+                    }
+                    else if(walls[i].type == COLLISION_TYPE_INTERSECT)
+                    {
+                        RenderEntity(&walls[i], 255, 0, 0);
+                    }
+                    else
+                    {
+                        RenderEntity(&walls[i], 255, 0, 255);
+                    }
                 }
                 RenderEntity(&player, PlayerRed, PlayerGreen, PlayerBlue);
                 HDC DeviceContext = GetDC(WindowHandle);

@@ -8,6 +8,13 @@
 #include <cmath>
 #include <climits>
 
+enum CollisionType
+{  
+    COLLISION_TYPE_COLLIDE,
+    COLLISION_TYPE_INTERSECT,
+    COLLISION_TYPE_NONE
+};
+
 // 2D Vector
 struct vec
 {
