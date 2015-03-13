@@ -4,23 +4,10 @@
 #include <iostream>
 #include <vector>
 #include <cstdlib>
+#include "collision_engine.cpp"
 
 typedef float real32;
 typedef int32_t bool32;
-
-float
-Maximum(float X, float Y)
-{
-    if(X > Y) return(X);
-    else return(Y);
-}
-
-struct vec
-{
-    float X;
-    float Y;
-    float Z;
-};
 
 struct Entity
 {
@@ -30,6 +17,7 @@ struct Entity
     int height;
     int width;
     bool Simple;
+    Hitbox hitbox;
 };
 
 static std::vector<vec> Simplex;
@@ -43,197 +31,6 @@ static int YOffset;
 static real32 GlobalPerfCountFrequency;
 bool keys[256];
 
-vec
-operator-(vec a, vec b)
-{
-    vec Result;
-    Result.X = a.X - b.X;
-    Result.Y = a.Y - b.Y;
-
-    return(Result);
-}
-
-vec
-operator*(vec a, float b)
-{
-    vec Result;
-    Result.X = a.X * b;
-    Result.Y = a.Y * b;
-
-    return(Result);
-}
-
-vec
-operator+(vec a, vec b)
-{
-    vec Result;
-    Result.X = a.X + b.X;
-    Result.Y = a.Y + b.Y;
-
-    return(Result);
-}
-
-vec
-MakeVec(float x, float y, float Z = 0.0)
-{
-    vec Result;
-    Result.X = x;
-    Result.Y = y;
-
-    return(Result);
-}
-
-vec
-Cross(vec a, vec b)
-{
-    vec Result;
-    Result.X = (a.Y * b.Z) - (a.Z * b.Y);
-    Result.Y = (a.Z * b.X) - (a.X * b.Z);
-    Result.Z = (a.X * b.Y) - (a.Y * b.X);
-
-    return(Result);
-}
-
-float
-Dot(vec a, vec b)
-{
-    return(a.X * b.X + a.Y * b.Y);
-}
-
-float
-operator^(vec a, vec b)
-{
-    return(Dot(a,b));
-}
-
-vec
-operator*(vec a, vec b)
-{
-    return(Cross(a,b));
-}
-
-vec
-operator-(vec a)
-{
-    vec Result;
-    Result.X = -a.X;
-    Result.Y = -a.Y;
-
-    return(Result);
-}
-
-vec
-FindPoint(vec D, std::vector<vec> shape, int size)
-{
-    float maxDot = Dot(D, shape[0]);
-    int maxIndex = 0;
-
-    for(int i = 0; i < size; ++i)
-    {
-        float dot = (Dot(D,shape[i]));
-        if(dot > maxDot)
-        {
-            maxDot = dot;
-            maxIndex = i;
-        }
-    }
-
-    return(shape[maxIndex]);
-}
-
-vec
-Support(vec D, std::vector<vec> shape1, int size1, std::vector<vec> shape2, int size2)
-{
-    vec A = FindPoint(D, shape1, size1);
-    vec B = FindPoint(-D, shape2, size2);
-
-    vec Result = A - B;
-
-    return(Result);
-}
-
-bool
-DoSimplex(std::vector<vec> *Simplex, vec *D)
-{
-    vec A = Simplex->at(Simplex->size() - 1);
-    vec A0 = -A;
-    if(Simplex->size() <= 2)
-    {
-        vec B = Simplex->at(0);
-        vec AB = B - A;
-        if((AB^A0) > 0){
-            *D = AB*A0*AB;
-        }
-        else
-        {
-            Simplex->erase(Simplex->begin());
-            *D = A0;
-        }
-        return(false); // we need 3 points...
-    }
-    else
-    {
-        vec B = Simplex->at(1);
-        vec C = Simplex->at(0);
-        vec AB = B - A;
-        vec AC = C - A;
-        vec Dir = MakeVec(-AB.Y, AB.X);
-        if((Dir^C) > 0)
-        {
-            Dir = -Dir;
-        }
-        if((Dir^A0) > 0)
-        {
-            Simplex->erase(Simplex->begin());
-            *D = Dir;
-            return(false);
-        }
-
-        Dir = MakeVec(-AC.Y, AC.X);
-        if((Dir^B) > 0)
-        {
-            Dir = -Dir;
-        }
-        if((Dir^A0) > 0)
-        {
-            Simplex->erase(Simplex->begin()+1);
-            *D = Dir;
-            return(false);
-        }
-
-        return true;
-    }
-}
-
-std::vector<vec> GetCorners(Entity e)
-{
-    int XMove = BitmapWidth / 2;
-    int YMove = BitmapHeight / 2;
-    std::vector<vec> Result;
-    Result.push_back(MakeVec(e.Position.X - XMove, -e.Position.Y + YMove));
-    Result.push_back(MakeVec(e.Position.X - XMove, -(e.Position.Y +e.height -1) + YMove));
-    Result.push_back(MakeVec(e.width -1 + e.Position.X - XMove, -e.Position.Y + YMove));
-    Result.push_back(MakeVec(e.width -1 + e.Position.X - XMove, -(e.Position.Y + e.height -1) + YMove));
-    return(Result);
-}
-
-bool
-DoMinkowski(std::vector<vec> shape1, std::vector<vec> shape2)
-{
-    Simplex.clear();
-    vec A = Support(MakeVec(-1.0,-1.0), shape1, shape1.size(), shape2, shape2.size());
-    Simplex.push_back(A);
-    vec D = -A;
-    while(1 == 1)
-    {
-        A = Support(D, shape1, shape1.size(), shape2, shape2.size());
-        float A_D = A^D;
-        if((A_D) < 0.000001) return(false);
-        Simplex.push_back(A);
-        if(DoSimplex(&Simplex, &D)) return(true);
-    }
-}
-
 static vec
 MetersToPixels(vec a)
 {
@@ -241,6 +38,32 @@ MetersToPixels(vec a)
     Result.X = a.X * 60;
     Result.Y = a.Y * 60;
     return(Result);
+}
+
+void GetHitbox(vec *points, vec center, int width, int height, bool isPlayer = false)
+{
+    if(isPlayer)
+    {
+        points[0].X = center.X;
+        points[0].Y = center.Y + height - 20;
+
+        points[1].X = center.X + width;
+        points[1].Y = center.Y + height - 20;
+    }
+    else
+    {
+        points[0].X = center.X;
+        points[0].Y = center.Y;
+
+        points[1].X = center.X + width;
+        points[1].Y = center.Y;
+    }
+
+    points[2].X = center.X;
+    points[2].Y = center.Y + height;
+
+    points[3].X = center.X + width;
+    points[3].Y = center.Y + height;
 }
 
 static void
@@ -256,6 +79,24 @@ RenderEntity(Entity *entity, uint8_t R, uint8_t G, uint8_t B)
         for(int X = 0; X < entity->width; ++X)
         {
            *Pixel++ = (R << 16 | G << 8 | B); 
+        }
+        Row += Pitch;
+    }
+}
+
+static void
+DrawDot(int WorldX, int WorldY, int R, int G, int B)
+{
+    int Pitch = 4 * BitmapWidth;
+    uint8_t *Row = (uint8_t *)BitmapMemory;
+    Row += (uint32_t)(Pitch * (WorldY - 2));
+    uint32_t *Pixel;
+    for(int Y = 0; Y < 5; ++Y)
+    {
+        Pixel = (uint32_t *)Row + (uint32_t)(WorldX - 2);
+        for(int X = 0; X < 5; ++X)
+        {
+            *Pixel++ = (R << 16 | G << 8 | B); 
         }
         Row += Pitch;
     }
@@ -281,59 +122,37 @@ RenderScreen(int XOffset, int YOffset)
     }
 }
 
-float
-PerpProduct(vec a, vec b)
-{
-    float pp = a.X * b.Y - a.Y * b.X;
-    return pp;
-}
-
-vec
-GetIntersectionPoint(vec V1, vec V1Start, vec V2, vec V2Start)
-{
-    vec V3 = V2Start - V1Start;
-    float tVal = PerpProduct(V3, V2) / PerpProduct(V1, V2);
-    vec Result = V1Start + V1 * tVal;
-    return(Result);
-}
-
-float
-Length(vec v)
-{
-    return sqrt(v.X * v.X + v.Y * v.Y);
-}
-
 void
 MoveEntity(Entity *e, std::vector<Entity> walls, vec Delta)
 {
-    bool WasCollision = false;
-    Entity CollisionTester;
-    CollisionTester.Position = e->Position + MetersToPixels(Delta);
-    CollisionTester.height = e->height;
-    CollisionTester.width = e->width;
-
-    for(int i = 0; i < walls.size(); ++i)
+    float tRem = 1.0f;
+    vec TrueDelta = MetersToPixels(Delta);
+    while(tRem > 0.0f)
     {
-        //TODO (jtroxel): Add new collision code here!
-        Simplex.clear();
-        if(DoMinkowski(GetCorners(CollisionTester), GetCorners(walls[i])))
+        float tCalc = tRem;
+        CollisionResult_t finalResult;
+        for(int i = 0; i < walls.size(); ++i)
         {
-            /*vec PointA = FindPoint(-Delta, GetCorners(walls[i]), 4);
-            vec PointB = ????;
-            vec WallDelta = PointB - PointA;
-            vec Intersection = GetIntersectionPoint(Delta, e->Position, WallDelta, PointA);
-            float tReal = Length(Intersection) / Length(Delta);
-            float tResult = Maximum(0.0f, tReal - 0.0001f);
-            e->Position = e->Position + MetersToPixels(Delta * tResult);*/
-            WasCollision = true;
-            //TODO (jtroxel): find the lowest total tResult, then use that as the tResult for movement!!!
-            break;
+            CollisionResult_t Result = GetCollision(e->hitbox, walls[i].hitbox, TrueDelta);
+            if(Result.t < tCalc && Result.t >= 0)
+            {
+                tCalc = Result.t;
+                finalResult = Result;
+            }
         }
+        if(tCalc < 1.0) // collision
+        {
+            e->Position = e->Position + (TrueDelta * tCalc);
+            TrueDelta = TrueDelta - finalResult.normal * (TrueDelta^finalResult.normal);
+            tRem -= 0.2; //5ish bounces max, each time we lose some momentum
+        }
+        else
+        {
+            e->Position = e->Position + TrueDelta;
+        }
+        tRem -= tCalc;
     }
-    if(!WasCollision)
-    {
-        e->Position = e->Position + MetersToPixels(Delta);
-    }
+    GetHitbox(e->hitbox.points, e->Position, 40, 60, true);
 }
 
 static void
@@ -517,7 +336,7 @@ WinMain(HINSTANCE hInstance,
             bool notDown = true;
 
             Entity player;
-            player.Position.X = BitmapWidth / 2;
+            player.Position.X = 80 + (BitmapWidth / 2);
             player.Position.Y = BitmapHeight / 2;
             player.width = 40;
             player.height = 60;
@@ -526,32 +345,65 @@ WinMain(HINSTANCE hInstance,
             player.Velocity.Y = 0;
             player.Acceleration.X = 0;
             player.Acceleration.Y = 0;
+            player.hitbox.size = 4;
+            player.hitbox.points = new vec[4];
+            GetHitbox(player.hitbox.points, player.Position, 40, 60, true);
 
             std::vector<Entity> walls;
             Entity topWall;
             topWall.Position = MakeVec(0.0f, 0.0f);
             topWall.width = BitmapWidth;
             topWall.height = 20;
+            topWall.hitbox.size = 4;
+            topWall.hitbox.points = new vec[4];
+            GetHitbox(topWall.hitbox.points, topWall.Position, BitmapWidth, 20);
 
             Entity bottomWall;
             bottomWall.Position = MakeVec(0.0f, (float)(BitmapHeight - 20));
             bottomWall.width = BitmapWidth;
             bottomWall.height = 20;
-
+            bottomWall.hitbox.size = 4;
+            bottomWall.hitbox.points = new vec[4];
+            GetHitbox(bottomWall.hitbox.points, bottomWall.Position, BitmapWidth, 20);
+            
             Entity leftWall;
             leftWall.Position = MakeVec(0.0f, 0.0f);
             leftWall.width = 20;
             leftWall.height = BitmapHeight;
-
+            leftWall.hitbox.size = 4;
+            leftWall.hitbox.points = new vec[4];
+            GetHitbox(leftWall.hitbox.points, leftWall.Position, 20, BitmapHeight);
+            
             Entity rightWall;
             rightWall.Position = MakeVec((float)(BitmapWidth - 20), 0.0f);
             rightWall.width = 20;
             rightWall.height = BitmapHeight;
+            rightWall.hitbox.size = 4;
+            rightWall.hitbox.points = new vec[4];
+            GetHitbox(rightWall.hitbox.points, rightWall.Position, 20, BitmapHeight);
+            
+            Entity middleWallTop;
+            middleWallTop.Position = MakeVec((float)((BitmapWidth / 2) - 10), 20.0f);
+            middleWallTop.width = 20;
+            middleWallTop.height = (BitmapHeight / 2) - 40;
+            middleWallTop.hitbox.size = 4;
+            middleWallTop.hitbox.points = new vec[4];
+            GetHitbox(middleWallTop.hitbox.points, middleWallTop.Position, 20, (BitmapHeight / 2) - 40);
+
+            Entity middleWallBot;
+            middleWallBot.Position = MakeVec((float)((BitmapWidth / 2) - 10), (BitmapHeight / 2) + 40);
+            middleWallBot.width = 20;
+            middleWallBot.height = (BitmapHeight / 2) - 40;
+            middleWallBot.hitbox.size = 4;
+            middleWallBot.hitbox.points = new vec[4];
+            GetHitbox(middleWallBot.hitbox.points, middleWallBot.Position, 20, (BitmapHeight / 2) - 40);
 
             walls.push_back(topWall);
             walls.push_back(bottomWall);
             walls.push_back(leftWall);
             walls.push_back(rightWall);
+            walls.push_back(middleWallTop);
+            walls.push_back(middleWallBot);
 
             int xVals[5] = {150,300,450,600,750};
             int yVals[5] = {300,150,300,150,300};
@@ -563,6 +415,9 @@ WinMain(HINSTANCE hInstance,
                 newWalls[i].Position = MakeVec(xVals[i], yVals[i]);
                 newWalls[i].width = 40;
                 newWalls[i].height = 40;
+                newWalls[i].hitbox.size = 4;
+                newWalls[i].hitbox.points = new vec[4];
+                GetHitbox(newWalls[i].hitbox.points, newWalls[i].Position, 40, 40);
                 walls.push_back(newWalls[i]);
             }
 
