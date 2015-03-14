@@ -1,3 +1,16 @@
+/*
+NEXT:
+- collision corner problem when flush with wall, moving "out" and back "in"
+- moving camera possibilities when near edge
+- rendering:
+    - BMPs
+    - more robust edge casing, so that objects can be partially off screen
+- Collide(e1,e2) - switch statement vs objects
+    - what do i gain from using classes
+    - what do i gain from not?
+*/
+
+
 #include <windows.h>
 #include <cstdint>
 #include <cstdio>
@@ -7,6 +20,8 @@
 #include "collision_engine.cpp"
 
 #define PIXELS_PER_METER 30 //rougly 10 pixels = 1 ft
+#define CAMERA_MARGIN 300
+
 typedef float real32;
 typedef int32_t bool32;
 
@@ -33,12 +48,34 @@ static int YOffset;
 static real32 GlobalPerfCountFrequency;
 bool keys[256];
 
+//TODO (jtroxel): turn this into a world struct
+static int WorldXMin;
+static int WorldXMax;
+static int WorldYMin;
+static int WorldYMax;
+
+//TODO (jtroxel): create camera struct
+static float CameraXOffset;
+static float CameraYOffset;
+
 static vec
 MetersToPixels(vec A)
 {
     vec Result;
     Result = A * PIXELS_PER_METER;
     return(Result);
+}
+
+float
+Maximum(float A, float B)
+{
+    return (A>B)?A:B;
+}
+
+float
+Minimum(float A, float B)
+{
+    return (A<B)?A:B;
 }
 
 void GetHitbox(vec *points, vec center, int width, int height, bool isPlayer = false)
@@ -70,14 +107,20 @@ void GetHitbox(vec *points, vec center, int width, int height, bool isPlayer = f
 static void
 RenderEntity(Entity *entity, uint8_t R, uint8_t G, uint8_t B)
 {
+    float RenderXPos = entity->Position.X - CameraXOffset;
+    float RenderYPos = entity->Position.Y - CameraYOffset;
+    float YStart = Maximum(RenderYPos, 0.0f);
+    float YEnd = Minimum(RenderYPos + entity->height, (float)BitmapHeight);
+    float XStart = Maximum(RenderXPos, 0.0f);
+    float XEnd = Minimum(RenderXPos + entity->width, (float)BitmapWidth);
     int Pitch = 4 * BitmapWidth;
     uint8_t *Row = (uint8_t *)BitmapMemory;
-    Row += (uint32_t)(Pitch * (uint32_t)entity->Position.Y);
+    Row += (uint32_t)(Pitch * (uint32_t)YStart);
     uint32_t *Pixel;
-    for(int Y = 0; Y < entity->height; ++Y)
+    for(int Y = YStart; Y < YEnd; ++Y)
     {
-        Pixel = (uint32_t *)Row + (uint32_t)entity->Position.X;
-        for(int X = 0; X < entity->width; ++X)
+        Pixel = (uint32_t *)Row + (uint32_t)XStart;
+        for(int X = XStart; X < XEnd; ++X)
         {
            *Pixel++ = (R << 16 | G << 8 | B); 
         }
@@ -186,12 +229,12 @@ UpdateEntity(Entity *e, std::vector<Entity> walls, float dt)
     e->Velocity = e->Acceleration * dt + e->Velocity;
 
     if(abs(e->Velocity.X) < 0.001) e->Velocity.X = 0;
-    if(abs(e->Velocity.Y) < 0.001) e->Velocity.Y = 0;      
+    if(abs(e->Velocity.Y) < 0.001) e->Velocity.Y = 0;
 
-    if(e->Position.X < 0) e->Position.X = 0;
-    if(e->Position.Y < 0) e->Position.Y = 0;
-    if(e->Position.X > BitmapWidth - e->width) e->Position.X = BitmapWidth - e->width;
-    if(e->Position.Y > BitmapHeight - e->height) e->Position.Y = BitmapHeight - e->height;
+    //if(e->Position.X < 0) e->Position.X = 0;
+    //if(e->Position.Y < 0) e->Position.Y = 0;
+    //if(e->Position.X > BitmapWidth - e->width) e->Position.X = BitmapWidth - e->width;
+    //if(e->Position.Y > BitmapHeight - e->height) e->Position.Y = BitmapHeight - e->height;
 }
 
 inline LARGE_INTEGER
@@ -343,6 +386,14 @@ WinMain(HINSTANCE hInstance,
 
         if(WindowHandle)
         {
+            WorldXMin = 0;
+            WorldYMin = 0;
+            WorldXMax = BitmapWidth;
+            WorldYMax = BitmapHeight;
+
+            CameraXOffset = 0.0f;
+            CameraYOffset = 0.0f;
+
             int XOffset = 0;
             int YOffset = 0;
             int DesiredFramesPerSecond = 30;
@@ -368,56 +419,56 @@ WinMain(HINSTANCE hInstance,
             Entity topWall;
             topWall.Position = MakeVec(0.0f, 0.0f);
             topWall.width = BitmapWidth;
-            topWall.height = 20;
+            topWall.height = 40;
             topWall.hitbox.size = 4;
             topWall.hitbox.points = new vec[4];
             topWall.type = COLLISION_TYPE_COLLIDE;
-            GetHitbox(topWall.hitbox.points, topWall.Position, BitmapWidth, 20);
+            GetHitbox(topWall.hitbox.points, topWall.Position, BitmapWidth, 40);
 
             Entity bottomWall;
-            bottomWall.Position = MakeVec(0.0f, (float)(BitmapHeight - 20));
+            bottomWall.Position = MakeVec(0.0f, (float)(BitmapHeight - 40));
             bottomWall.width = BitmapWidth;
-            bottomWall.height = 20;
+            bottomWall.height = 40;
             bottomWall.hitbox.size = 4;
             bottomWall.hitbox.points = new vec[4];
             bottomWall.type = COLLISION_TYPE_COLLIDE;
-            GetHitbox(bottomWall.hitbox.points, bottomWall.Position, BitmapWidth, 20);
+            GetHitbox(bottomWall.hitbox.points, bottomWall.Position, BitmapWidth, 40);
             
             Entity leftWall;
             leftWall.Position = MakeVec(0.0f, 0.0f);
-            leftWall.width = 20;
+            leftWall.width = 40;
             leftWall.height = BitmapHeight;
             leftWall.hitbox.size = 4;
             leftWall.hitbox.points = new vec[4];
             leftWall.type = COLLISION_TYPE_COLLIDE;
-            GetHitbox(leftWall.hitbox.points, leftWall.Position, 20, BitmapHeight);
+            GetHitbox(leftWall.hitbox.points, leftWall.Position, 40, BitmapHeight);
             
             Entity rightWall;
-            rightWall.Position = MakeVec((float)(BitmapWidth - 20), 0.0f);
-            rightWall.width = 20;
+            rightWall.Position = MakeVec((float)(BitmapWidth - 40), 0.0f);
+            rightWall.width = 40;
             rightWall.height = BitmapHeight;
             rightWall.hitbox.size = 4;
             rightWall.hitbox.points = new vec[4];
             rightWall.type = COLLISION_TYPE_COLLIDE;
-            GetHitbox(rightWall.hitbox.points, rightWall.Position, 20, BitmapHeight);
+            GetHitbox(rightWall.hitbox.points, rightWall.Position, 40, BitmapHeight);
             
             Entity middleWallTop;
-            middleWallTop.Position = MakeVec((float)((BitmapWidth / 2) - 10), 20.0f);
-            middleWallTop.width = 20;
+            middleWallTop.Position = MakeVec((float)((BitmapWidth / 2) - 20), 20.0f);
+            middleWallTop.width = 40;
             middleWallTop.height = (BitmapHeight / 2) - 40;
             middleWallTop.hitbox.size = 4;
             middleWallTop.hitbox.points = new vec[4];
             middleWallTop.type = COLLISION_TYPE_COLLIDE;
-            GetHitbox(middleWallTop.hitbox.points, middleWallTop.Position, 20, (BitmapHeight / 2) - 40);
+            GetHitbox(middleWallTop.hitbox.points, middleWallTop.Position, 40, (BitmapHeight / 2) - 40);
 
             Entity middleWallBot;
-            middleWallBot.Position = MakeVec((float)((BitmapWidth / 2) - 10), (BitmapHeight / 2) + 40);
-            middleWallBot.width = 20;
+            middleWallBot.Position = MakeVec((float)((BitmapWidth / 2) - 20), (BitmapHeight / 2) + 40);
+            middleWallBot.width = 40;
             middleWallBot.height = (BitmapHeight / 2) - 40;
             middleWallBot.hitbox.size = 4;
             middleWallBot.hitbox.points = new vec[4];
             middleWallBot.type = COLLISION_TYPE_COLLIDE;
-            GetHitbox(middleWallBot.hitbox.points, middleWallBot.Position, 20, (BitmapHeight / 2) - 40);
+            GetHitbox(middleWallBot.hitbox.points, middleWallBot.Position, 40, (BitmapHeight / 2) - 120);
 
             walls.push_back(topWall);
             walls.push_back(bottomWall);
@@ -487,7 +538,33 @@ WinMain(HINSTANCE hInstance,
                 }
 
                 UpdateEntity(&player, walls, TargetSecondsPerFrame);
+                bool FixedCamera = true;
+                if(FixedCamera)
+                {
+                    CameraXOffset = player.Position.X - (BitmapWidth / 2);
+                    CameraYOffset = player.Position.Y - (BitmapHeight / 2);
+                }
+                else
+                {
+                    if(player.Position.X + player.width > BitmapWidth - CAMERA_MARGIN + CameraXOffset)
+                    {
+                        CameraXOffset += (player.Position.X + player.width - (BitmapWidth - CAMERA_MARGIN + CameraXOffset));
+                    }               
+                    if(player.Position.X < CAMERA_MARGIN + CameraXOffset)
+                    {
+                        CameraXOffset -= (CAMERA_MARGIN + CameraXOffset - player.Position.X);
+                    }               
+                    if(player.Position.Y + player.height> BitmapHeight - CAMERA_MARGIN + CameraYOffset)
+                    {
+                        CameraYOffset += (player.Position.Y + player.height - (BitmapHeight - CAMERA_MARGIN + CameraYOffset));
+                    }               
+                    if(player.Position.Y < CAMERA_MARGIN + CameraYOffset)
+                    {
+                        CameraYOffset -= (CAMERA_MARGIN + CameraYOffset - player.Position.Y);
+                    }
+                }
                 RenderScreen(XOffset, YOffset);
+
                 for(int i = 0; i < walls.size(); ++i)
                 {
                     if(walls[i].type == COLLISION_TYPE_COLLIDE)

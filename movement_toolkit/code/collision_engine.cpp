@@ -22,6 +22,20 @@ struct vec
     float Y;
 };
 
+// Holds Resulting Collision Information
+struct CollisionResult_t
+{
+    float t;
+    vec normal;  
+};
+
+// Holds Hitbox Information
+struct Hitbox
+{
+    vec *points;
+    int size;
+};
+
 vec operator*(vec A, float B)
 {
     vec Result;
@@ -63,20 +77,6 @@ vec operator-(vec A, vec B)
     Result.Y = A.Y - B.Y;
     return(Result);
 }
-
-// Holds Resulting Collision Information
-struct CollisionResult_t
-{
-    float t;
-    vec normal;  
-};
-
-// Holds Hitbox Information
-struct Hitbox
-{
-    vec *points;
-    int size;
-};
 
 // Vector init
 vec MakeVec(float X, float Y)
