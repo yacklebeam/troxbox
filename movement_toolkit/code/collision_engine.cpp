@@ -7,20 +7,13 @@
 #include <cstdio>
 #include <cmath>
 #include <climits>
+#include "game_vector.cpp"
 
-enum CollisionType
-{  
-    COLLISION_TYPE_COLLIDE,
-    COLLISION_TYPE_INTERSECT,
-    COLLISION_TYPE_NONE
-};
-
-// 2D Vector
-struct vec
+float
+Maximum(float A, float B)
 {
-    float X;
-    float Y;
-};
+    return (A>B)?A:B;
+}
 
 // Holds Resulting Collision Information
 struct CollisionResult_t
@@ -35,62 +28,6 @@ struct Hitbox
     vec *points;
     int size;
 };
-
-vec operator*(vec A, float B)
-{
-    vec Result;
-    Result.X = A.X * B;
-    Result.Y = A.Y * B;
-    return(Result);
-}
-
-vec operator-(vec A)
-{
-    vec Result;
-    Result.X = -A.X;
-    Result.Y = -A.Y;
-    return(Result);
-}
-
-vec operator+(vec A, vec B)
-{
-    vec Result;
-    Result.X = A.X + B.X;
-    Result.Y = A.Y + B.Y;
-    return(Result);
-}
-
-bool operator==(vec A, vec B)
-{
-    return (A.X == B.X && A.Y == B.Y);
-}
-
-float operator^(vec A, vec B)
-{
-    return A.X * B.X + A.Y * B.Y;
-}
-
-vec operator-(vec A, vec B)
-{
-    vec Result;
-    Result.X = A.X - B.X;
-    Result.Y = A.Y - B.Y;
-    return(Result);
-}
-
-// Vector init
-vec MakeVec(float X, float Y)
-{
-    vec Result;
-    Result.X = X;
-    Result.Y = Y;
-    return Result;
-}
-
-void Print(vec A)
-{
-    printf("(%f, %f)\n",A.X, A.Y);
-}
 
 // Finds t1 (or t2) between p1 + t1(p2) and p3 + t2(p4)
 float GetIntersection(vec p1, vec p2, vec p3, vec p4)
@@ -144,7 +81,7 @@ bool AroundLine(vec X, vec Y, vec Line)
     float xResult = A * X.X + B * X.Y;
     float yResult = A * Y.X + B * Y.Y;
 
-    if(xResult == 0 || yResult == 0) return true;
+    if(xResult == 0 || yResult == 0) return false;
     if(xResult < 0 && yResult > 0) return true;
     if(xResult > 0 && yResult < 0) return true;
     else return false;
@@ -212,9 +149,20 @@ CollisionResult_t GetCollision(Hitbox X, Hitbox Y, vec D)
         ++count;
     }
     CollisionResult_t Result;
-    if(!infinite) Result.t = GetIntersection(MakeVec(0,0),-D, Simplex[0], Simplex[1]);
-    else Result.t = 1.0f;
     Result.normal = Normalize(GetPerpindicularAwayFrom(Simplex[0] - Simplex[1], D));
-
+    if(!infinite)
+    {
+        //instead of using line, we use the parallel line kEpsilon away from the line
+        float testT = GetIntersection(MakeVec(0,0),-D, Simplex[0], Simplex[1]);
+        vec k_EpsilonVector = Result.normal * (1.0f - 0.001f);
+        vec Point1 = Simplex[0] - k_EpsilonVector;
+        vec Point2 = Simplex[1] - k_EpsilonVector;
+        Result.t = GetIntersection(MakeVec(0,0),-D, Point1, Point2);
+        if(abs(Result.t + testT) < abs(testT))
+        {
+            Result.t = 0.0f;
+        }
+    }
+    else Result.t = 1.0f;
     return(Result);
 }

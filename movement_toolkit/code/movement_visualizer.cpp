@@ -18,9 +18,11 @@ NEXT:
 #include <vector>
 #include <cstdlib>
 #include "collision_engine.cpp"
+#include "game_entity.cpp"
 
 #define PIXELS_PER_METER 30 //rougly 10 pixels = 1 ft
 #define CAMERA_MARGIN 300
+#define FRAMES_PER_SECOND 30
 
 typedef float real32;
 typedef int32_t bool32;
@@ -32,12 +34,10 @@ struct Entity
     vec Acceleration;
     int height;
     int width;
-    bool Simple;
     Hitbox hitbox;
     CollisionType type;
 };
 
-static std::vector<vec> Simplex;
 static bool Running;
 static BITMAPINFO BitMapInfo;
 static void *BitmapMemory;
@@ -62,14 +62,8 @@ static vec
 MetersToPixels(vec A)
 {
     vec Result;
-    Result = A * PIXELS_PER_METER;
+    Result = A * (float)PIXELS_PER_METER;
     return(Result);
-}
-
-float
-Maximum(float A, float B)
-{
-    return (A>B)?A:B;
 }
 
 float
@@ -167,7 +161,7 @@ RenderScreen(int XOffset, int YOffset)
 }
 
 void
-MoveEntity(Entity *e, std::vector<Entity> walls, vec Delta)
+MoveEntity(Entity *e, std::vector<Entity> entities, vec Delta)
 {
     float tRem = 1.0f;
     vec TrueDelta = MetersToPixels(Delta);
@@ -175,14 +169,14 @@ MoveEntity(Entity *e, std::vector<Entity> walls, vec Delta)
     {
         float tCalc = tRem;
         CollisionResult_t finalResult;
-        for(int i = 0; i < walls.size(); ++i)
+        for(int i = 0; i < entities.size(); ++i)
         {
-            CollisionResult_t Result = GetCollision(e->hitbox, walls[i].hitbox, TrueDelta);
-            switch(walls[i].type)
+            CollisionResult_t Result = GetCollision(e->hitbox, entities[i].hitbox, TrueDelta);
+            switch(entities[i].type)
             {
                 case COLLISION_TYPE_COLLIDE:
                 {
-                    if(Result.t < tCalc && Result.t >= 0)
+                    if(Result.t < tCalc && Result.t >= 0.0f)
                     {
                         tCalc = Result.t;
                         finalResult = Result;
@@ -193,28 +187,70 @@ MoveEntity(Entity *e, std::vector<Entity> walls, vec Delta)
                 {
                     if(Result.t < tCalc && Result.t >= 0)
                     {
-                        e->Velocity = e->Velocity * 2.5;
+                        //e->Velocity = e->Velocity * 2.5;
                     }
                 }
             }
         }
-        if(tCalc < 1.0) // collision
+        if(tCalc < 0.0001f)
         {
-            e->Position = e->Position + (TrueDelta * tCalc);
+            e->Position = e->Position;
             TrueDelta = TrueDelta - finalResult.normal * (TrueDelta^finalResult.normal);
-            tRem -= 0.2; //5ish bounces max, each time we lose some momentum
+            tRem -= 0.2; //5ish bounces max, each time we lose some momentum 
+        }
+        else if(tCalc < 1.0f)
+        {
+            e->Position = e->Position + TrueDelta * (tCalc);
+            TrueDelta = TrueDelta - finalResult.normal * (TrueDelta^finalResult.normal);
+            tRem -= 0.2; //5ish bounces max, each time we lose some momentum 
         }
         else
         {
             e->Position = e->Position + TrueDelta;
         }
+        /*float Epsilon = 0.00001f;
+        if(tCalc < 1.0) // collision
+        {
+            float xDelta = 0.0f;
+            float yDelta = 0.0f;
+            if(TrueDelta.X >= Epsilon || TrueDelta.X <= -Epsilon)
+            {
+                if(TrueDelta.X < 0) xDelta = (TrueDelta.X * tCalc) + Epsilon;
+                else xDelta = (TrueDelta.X * tCalc) - Epsilon;
+            }
+            if(TrueDelta.Y >= Epsilon || TrueDelta.Y <= -Epsilon)
+            {
+                if(TrueDelta.Y < 0) yDelta = (TrueDelta.Y * tCalc) + Epsilon;
+                else yDelta = (TrueDelta.Y * tCalc) - Epsilon;
+            }
+            e->Position = e->Position + MakeVec(xDelta, yDelta);
+            TrueDelta = TrueDelta - finalResult.normal * (TrueDelta^finalResult.normal);
+            tRem -= 0.2; //5ish bounces max, each time we lose some momentum
+        }
+        else
+        {
+            float xDelta = 0.0f;
+            float yDelta = 0.0f;
+            if(TrueDelta.X >= Epsilon || TrueDelta.X <= -Epsilon)
+            {
+                if(TrueDelta.X < 0) xDelta = (TrueDelta.X * tCalc) + Epsilon;
+                else xDelta = (TrueDelta.X * tCalc) - Epsilon;
+            }
+            if(TrueDelta.Y >= Epsilon || TrueDelta.Y <= -Epsilon)
+            {
+                if(TrueDelta.Y < 0) yDelta = (TrueDelta.Y * tCalc) + Epsilon;
+                else yDelta = (TrueDelta.Y * tCalc) - Epsilon;
+            }
+            e->Position = e->Position + MakeVec(xDelta, yDelta);
+        }*/
         tRem -= tCalc;
+
     }
-    GetHitbox(e->hitbox.points, e->Position, 40, 60, true);
+    GetHitbox(e->hitbox.points, e->Position, e->width, e->height, true);
 }
 
 static void
-UpdateEntity(Entity *e, std::vector<Entity> walls, float dt)
+UpdateEntity(Entity *e, std::vector<Entity> entities, float dt)
 {
     float accLength = e->Acceleration.X * e->Acceleration.X + e->Acceleration.Y * e->Acceleration.Y;
     if(accLength > 1.0f)
@@ -225,11 +261,19 @@ UpdateEntity(Entity *e, std::vector<Entity> walls, float dt)
     e->Acceleration = e->Acceleration * 100.0f;
     e->Acceleration = e->Acceleration + (e->Velocity * -8.0f);
     vec Delta = e->Acceleration * (0.5f * dt * dt) + e->Velocity * dt;
-    MoveEntity(e, walls, Delta);
+    MoveEntity(e, entities, Delta);
     e->Velocity = e->Acceleration * dt + e->Velocity;
 
-    if(abs(e->Velocity.X) < 0.001) e->Velocity.X = 0;
-    if(abs(e->Velocity.Y) < 0.001) e->Velocity.Y = 0;
+    if(abs(e->Velocity.X) < 0.01f)
+    {
+        e->Velocity.X = 0.0f;
+        e->Acceleration.X = 0.0f;
+    }
+    if(abs(e->Velocity.Y) < 0.01f)
+    {
+        e->Velocity.Y = 0.0f;
+        e->Acceleration.Y = 0.0f;
+    }
 
     //if(e->Position.X < 0) e->Position.X = 0;
     //if(e->Position.Y < 0) e->Position.Y = 0;
@@ -396,17 +440,16 @@ WinMain(HINSTANCE hInstance,
 
             int XOffset = 0;
             int YOffset = 0;
-            int DesiredFramesPerSecond = 30;
+            int DesiredFramesPerSecond = FRAMES_PER_SECOND;
             float TargetSecondsPerFrame = 1.0f / (real32)DesiredFramesPerSecond;
             Running = true;
             bool notDown = true;
 
             Entity player;
-            player.Position.X = 80 + (BitmapWidth / 2);
-            player.Position.Y = BitmapHeight / 2;
+            player.Position.X = 61;
+            player.Position.Y = 61;
             player.width = 40;
             player.height = 60;
-            player.Simple = true;
             player.Velocity.X = 0;
             player.Velocity.Y = 0;
             player.Acceleration.X = 0;
@@ -415,83 +458,67 @@ WinMain(HINSTANCE hInstance,
             player.hitbox.points = new vec[4];
             GetHitbox(player.hitbox.points, player.Position, 40, 60, true);
 
-            std::vector<Entity> walls;
-            Entity topWall;
-            topWall.Position = MakeVec(0.0f, 0.0f);
-            topWall.width = BitmapWidth;
-            topWall.height = 40;
-            topWall.hitbox.size = 4;
-            topWall.hitbox.points = new vec[4];
-            topWall.type = COLLISION_TYPE_COLLIDE;
-            GetHitbox(topWall.hitbox.points, topWall.Position, BitmapWidth, 40);
+            std::vector<Entity> entities;
+            int tileColCount = 20;
+            int tileRowCount = 20;
+            int Map[400] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+                            1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,1,0,1,1,1,0,1,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,1,0,1,0,1,1,1,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,1,1,1,1,1,0,1,0,0,0,0,0,0,0,0,0,0,1,
+                            1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                            1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,};
 
-            Entity bottomWall;
-            bottomWall.Position = MakeVec(0.0f, (float)(BitmapHeight - 40));
-            bottomWall.width = BitmapWidth;
-            bottomWall.height = 40;
-            bottomWall.hitbox.size = 4;
-            bottomWall.hitbox.points = new vec[4];
-            bottomWall.type = COLLISION_TYPE_COLLIDE;
-            GetHitbox(bottomWall.hitbox.points, bottomWall.Position, BitmapWidth, 40);
-            
-            Entity leftWall;
-            leftWall.Position = MakeVec(0.0f, 0.0f);
-            leftWall.width = 40;
-            leftWall.height = BitmapHeight;
-            leftWall.hitbox.size = 4;
-            leftWall.hitbox.points = new vec[4];
-            leftWall.type = COLLISION_TYPE_COLLIDE;
-            GetHitbox(leftWall.hitbox.points, leftWall.Position, 40, BitmapHeight);
-            
-            Entity rightWall;
-            rightWall.Position = MakeVec((float)(BitmapWidth - 40), 0.0f);
-            rightWall.width = 40;
-            rightWall.height = BitmapHeight;
-            rightWall.hitbox.size = 4;
-            rightWall.hitbox.points = new vec[4];
-            rightWall.type = COLLISION_TYPE_COLLIDE;
-            GetHitbox(rightWall.hitbox.points, rightWall.Position, 40, BitmapHeight);
-            
-            Entity middleWallTop;
-            middleWallTop.Position = MakeVec((float)((BitmapWidth / 2) - 20), 20.0f);
-            middleWallTop.width = 40;
-            middleWallTop.height = (BitmapHeight / 2) - 40;
-            middleWallTop.hitbox.size = 4;
-            middleWallTop.hitbox.points = new vec[4];
-            middleWallTop.type = COLLISION_TYPE_COLLIDE;
-            GetHitbox(middleWallTop.hitbox.points, middleWallTop.Position, 40, (BitmapHeight / 2) - 40);
-
-            Entity middleWallBot;
-            middleWallBot.Position = MakeVec((float)((BitmapWidth / 2) - 20), (BitmapHeight / 2) + 40);
-            middleWallBot.width = 40;
-            middleWallBot.height = (BitmapHeight / 2) - 40;
-            middleWallBot.hitbox.size = 4;
-            middleWallBot.hitbox.points = new vec[4];
-            middleWallBot.type = COLLISION_TYPE_COLLIDE;
-            GetHitbox(middleWallBot.hitbox.points, middleWallBot.Position, 40, (BitmapHeight / 2) - 120);
-
-            walls.push_back(topWall);
-            walls.push_back(bottomWall);
-            walls.push_back(leftWall);
-            walls.push_back(rightWall);
-            walls.push_back(middleWallTop);
-            walls.push_back(middleWallBot);
-
-            int xVals[5] = {150,300,450,600,750};
-            int yVals[5] = {300,150,300,150,300};
-
-            Entity newWalls[5];
-
-            for(int i = 0; i < 5; ++i)
+            for(int i = 0; i < 400; ++i)
             {
-                newWalls[i].Position = MakeVec(xVals[i], yVals[i]);
-                newWalls[i].width = 40;
-                newWalls[i].height = 40;
-                newWalls[i].hitbox.size = 4;
-                newWalls[i].hitbox.points = new vec[4];
-                newWalls[i].type = COLLISION_TYPE_COLLIDE;
-                GetHitbox(newWalls[i].hitbox.points, newWalls[i].Position, 40, 40);
-                walls.push_back(newWalls[i]);
+                switch(Map[i])
+                {
+                    case 1:
+                    {
+                        Entity *ent = new Entity();
+                        int Row = i / tileRowCount;
+                        int Col = i % tileColCount;
+                        ent->Position.X = 60 * Col;
+                        ent->Position.Y = 60 * Row;
+                        ent->width = 60;
+                        ent->height = 60;
+                        ent->hitbox.size = 4;
+                        ent->hitbox.points = new vec[4];
+                        ent->type = COLLISION_TYPE_COLLIDE;
+                        GetHitbox(ent->hitbox.points, ent->Position, 60, 60);
+                        entities.push_back(*ent);
+                        break;
+                    }
+                    case 2:
+                    {
+                        Entity *ent = new Entity();
+                        int Row = i / tileRowCount;
+                        int Col = i % tileColCount;
+                        ent->Position.X = 60 * Col;
+                        ent->Position.Y = 60 * Row;
+                        ent->width = 60;
+                        ent->height = 60;
+                        ent->hitbox.size = 4;
+                        ent->hitbox.points = new vec[4];
+                        ent->type = COLLISION_TYPE_INTERSECT;
+                        GetHitbox(ent->hitbox.points, ent->Position, 60, 60);
+                        entities.push_back(*ent);
+                        break;
+                    }
+                }
             }
 
             uint8_t PlayerRed = 0;
@@ -537,12 +564,12 @@ WinMain(HINSTANCE hInstance,
                     player.Acceleration.X = 1.0f;                    
                 }
 
-                UpdateEntity(&player, walls, TargetSecondsPerFrame);
+                UpdateEntity(&player, entities, TargetSecondsPerFrame);
                 bool FixedCamera = true;
                 if(FixedCamera)
                 {
-                    CameraXOffset = player.Position.X - (BitmapWidth / 2);
-                    CameraYOffset = player.Position.Y - (BitmapHeight / 2);
+                    CameraXOffset = player.Position.X - (BitmapWidth / 2) + (player.width / 2);
+                    CameraYOffset = player.Position.Y - (BitmapHeight / 2) + (player.height / 2);
                 }
                 else
                 {
@@ -565,19 +592,19 @@ WinMain(HINSTANCE hInstance,
                 }
                 RenderScreen(XOffset, YOffset);
 
-                for(int i = 0; i < walls.size(); ++i)
+                for(int i = 0; i < entities.size(); ++i)
                 {
-                    if(walls[i].type == COLLISION_TYPE_COLLIDE)
+                    if(entities[i].type == COLLISION_TYPE_COLLIDE)
                     {
-                        RenderEntity(&walls[i], 0, 0, 255);
+                        RenderEntity(&entities[i], 0, 0, 255);
                     }
-                    else if(walls[i].type == COLLISION_TYPE_INTERSECT)
+                    else if(entities[i].type == COLLISION_TYPE_INTERSECT)
                     {
-                        RenderEntity(&walls[i], 255, 0, 0);
+                        RenderEntity(&entities[i], 255, 0, 0);
                     }
                     else
                     {
-                        RenderEntity(&walls[i], 255, 0, 255);
+                        RenderEntity(&entities[i], 255, 0, 255);
                     }
                 }
                 RenderEntity(&player, PlayerRed, PlayerGreen, PlayerBlue);
