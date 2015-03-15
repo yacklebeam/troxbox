@@ -158,7 +158,7 @@ CollisionResult_t GetCollision(Hitbox X, Hitbox Y, vec D)
         vec Point1 = Simplex[0] - k_EpsilonVector;
         vec Point2 = Simplex[1] - k_EpsilonVector;
         Result.t = GetIntersection(MakeVec(0,0),-D, Point1, Point2);
-        if(abs(Result.t + testT) < abs(testT))
+        if(testT > 0 && Result.t < 0)
         {
             Result.t = 0.0f;
         }
