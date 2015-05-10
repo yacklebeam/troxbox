@@ -160,6 +160,8 @@ RenderScreen(int XOffset, int YOffset)
     }
 }
 
+//TODO (jtroxel): MOVE this code to the physics engine code
+
 void
 MoveEntity(Entity *e, std::vector<Entity> entities, vec Delta)
 {
